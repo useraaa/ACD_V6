@@ -92,6 +92,11 @@ void HandleClient(int sock, u8 port)
 	u8 buffer[CTRL_PACK * 2];
 	int received = 0;
 
+	if ((port != 0) && (port != 1)) {
+		printf("Wrong port number - %d\n", port);
+		return;
+	}
+
 	do {
 		/* Send back received data */
 		/* Check for more data */

@@ -128,10 +128,8 @@ void cam_set_bl ( u8 value, u8 cam_num)
 	camera_iocmd(0x34, &arg, cam_num);
 }
 
-void camera_iocmd(u8 cmd, u32 *arg, u8 cam_num) {
-	//camio_mutex
-//	sem_wait(&camio_mutex);
-
+int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num)
+{
 	char msg[64];
 	sprintf(msg, "echo %d > /sys/class/gpio/gpio31/value", cam_num);
 	system(msg);
@@ -147,9 +145,9 @@ void camera_iocmd(u8 cmd, u32 *arg, u8 cam_num) {
 	// write to camera MC
 	write(camio, bbuf, CAMERA_CMD_PACK_SZ);
 
-
 	tmo = 500;
 	len = 0;
+
 	while (len < CAMERA_CMD_PACK_SZ) {
 		int q = read(camio, &bbuf[len], CAMERA_CMD_PACK_SZ - len);
 		if (q > 0)
@@ -163,6 +161,7 @@ void camera_iocmd(u8 cmd, u32 *arg, u8 cam_num) {
 
 	if (!tmo) {
 		printf("Camera IO ERROR\n");
+		return ERR_I2C_ERROR;
 	} else
 		memcpy(arg, &bbuf[2], 4);
 
@@ -170,7 +169,7 @@ void camera_iocmd(u8 cmd, u32 *arg, u8 cam_num) {
 
 //	sem_post(&camio_mutex);
 
-	return;
+	return ERR_OK;
 }
 
 void camera_alarm(int sig_num) {
@@ -501,10 +500,10 @@ u8 *get_frame(cam_format_t fmt, u16 * w, u16 * h, u8 port)
 {
 	u8 * src;
 
-	if ((port != 0) && (port != 1)) {
-		printf("Wrong port number - %d\n", port);
-		return NULL;
-	}
+//	if ((port != 0) && (port != 1)) {
+//		printf("Wrong port number - %d\n", port);
+//		return NULL;
+//	}
 
 	lock_cam();
 //

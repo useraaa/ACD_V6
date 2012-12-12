@@ -86,6 +86,7 @@ void save_setup (struct FAM_SETUP *s)
 	fprintf(in, "18 CDELTA %d\n", s->contrDelta[1]);
 	fprintf(in, "19 SERIAL %d\n", s->serial);
 	fprintf(in, "20 BEEP_MODE %d\n", s->beeperMode);
+	fprintf(in, "21 CONN_TOUT %d\n", s->connTout);
 	fclose(in);
 
 
@@ -127,6 +128,7 @@ void save_setup (struct FAM_SETUP *s)
 	printf( "18 CDELTA %d\n", s->contrDelta[1]);
 	printf( "19 SERIAL %d\n", s->serial);
 	printf( "20 BEEP_MODE %d\n", s->beeperMode);
+	printf( "21 CONN_TOUT %d\n", s->connTout);
 }
 
 u8 load_fam_setup(struct FAM_SETUP *s)
@@ -284,6 +286,12 @@ u8 load_fam_setup(struct FAM_SETUP *s)
 			if (sscanf(value, "%d", &a[0]) != 1)
 				err = num;
 			s->beeperMode = a[0];
+			printf("%s: %d\n", prop,a[0]);
+			break;
+		case 21:
+			if (sscanf(value, "%d", &a[0]) != 1)
+				err = num;
+			s->connTout = a[0];
 			printf("%s: %d\n", prop,a[0]);
 			break;
 		default:

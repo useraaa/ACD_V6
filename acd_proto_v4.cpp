@@ -78,8 +78,49 @@ void do_protocol(int sock, u8* buffer, u8 port)
 		case CMD_SET_TIME:
 			rtc_set_time( ((u8*)&arg1)[0], ((u8*)&arg1)[1], ((u8*)&arg1)[2], ((u16*)&arg2)[0]);
 			break;
+
 		case CMD_GET_TIME:
 			rtc_get_time(&((u8*)&arg1)[0], &((u8*)&arg1)[1], &((u8*)&arg1)[2], (u16*)&arg2);
+			break;
+		// legacy command;
+		case CMD_SETUP:
+			#define ARG_READ				1
+			#define ARG_WRITE				2
+			#define PR_IMGMODE				1
+			#define PR_IRQMODE				2
+			#define PR_BEEPERMODE			3
+			if (err == ARG_READ)
+			    {
+			        switch (arg1)
+			        {
+			            case PR_IMGMODE:
+			            	arg2 = fam_setup.imgMode;
+			            	break;
+
+			            case PR_IRQMODE:
+			            	arg2 = fam_setup.irqMode;
+			            	break;
+
+			            case PR_BEEPERMODE:
+			            	arg2 = fam_setup.beeperMode;
+			        }
+			    }
+			    if (err == ARG_WRITE)
+			    {
+			        switch (arg1)
+			        {
+			            case PR_IMGMODE:
+			            	fam_setup.imgMode = arg2;
+			            	break;
+
+			            case PR_IRQMODE:
+			            	fam_setup.irqMode = arg2;
+			            	break;
+
+			             case PR_BEEPERMODE:
+			            	 fam_setup.beeperMode = arg2;
+			        }
+			    }
 			break;
 
 		case CMD_GET_VERSION:
@@ -100,11 +141,17 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			if (pcklen < 512)
 				pcklen = 512;
 
+			if (arg2 == 1)
+				if (check_finger_presense(port) == 0) {
+					build_packet(cmd, arg1, arg2, ERR_NO_VALID_IMAGE, (u8 *) buffer);
+					send(sock, buffer, CTRL_PACK, 0);
+					break;
+				}
 
 			u8 *ptr = get_frame((cam_format_t) err, &w, &h, port);
 
 			if (ptr == NULL) {
-				build_packet(cmd, 0, 0, ERR_BAD_ARGUMENT, (u8 *) buffer);
+				build_packet(cmd, 0, 0, ERR_NO_VALID_IMAGE, (u8 *) buffer);
 				send(sock, buffer, CTRL_PACK, 0);
 				printf("Camera not ready\n");
 				break;
@@ -175,7 +222,13 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			err = ERR_1OK;
 			fam_setup.highlight[port] = arg1;
 			//arg1 = 255 - arg1;
-			camera_iocmd(0x34, (u32 *) &arg1, port);
+			err = camera_iocmd(0x34, (u32 *) &arg1, port);
+			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
+			send(sock, buffer, CTRL_PACK, 0);
+			break;
+		}
+		case CMD_SET_OFFSET: {
+			err = camera_iocmd(0x38, (u32 *) &arg1, port);
 			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
@@ -184,16 +237,15 @@ void do_protocol(int sock, u8* buffer, u8 port)
 		case CMD_SET_GAIN: {
 			err = ERR_1OK;
 			fam_setup.gain[port] = arg1;
+			arg2 = arg1;	// save initial value to return it to the host
 			arg1 = (((u16) arg1) << 16) | 0x35;
-			camera_iocmd(0x32, (u32 *) &arg1, port);
-			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
+			err = camera_iocmd(0x32, (u32 *) &arg1, port);
+			build_packet(cmd, arg2, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
 		}
 
 		case CMD_M162_CTL: {
-			// err - cmd
-
 			ioctl_proc(&err, (u32 *) &arg1, (u32 *) &arg2, port);
 			build_packet(cmd, arg1, arg2, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);

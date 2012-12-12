@@ -53,7 +53,7 @@ void camera_stop();
 void camera_start();
 
 u8 check_finger_presense(u8 port);
-void camera_iocmd(u8 cmd, u32 *arg, u8 cam_num);
+int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num);
 
 void lock_cam();
 void unlock_cam();
