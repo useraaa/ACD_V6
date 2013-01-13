@@ -58,6 +58,7 @@ int parse_stmio(u8 *buf) {
 
 void transmit(u8 cmd, u8 *packet)
 {
+	printf("ST>> ");
 	u8 buf[33];
 	memset(buf, 0, 32);
 	buf[0] = 'S';
@@ -69,10 +70,13 @@ void transmit(u8 cmd, u8 *packet)
 	read(stmd, buf, 32);
 
 	if ((buf[0] != 'S') || (buf[31] != 'E')) {
-		printf("STMIO ERROR\n");
+		printf(" STMIO ERROR ");
 	}
 
+	usleep(10000);
+
 	memcpy(packet, &buf[2], 29);
+	printf("<<\n");
 }
 
 
@@ -113,6 +117,9 @@ static void * stmio_thread(void *ptr) {
 	int errors = 0;
 
 	memset(io_buf, 0, 64);
+	transmit(0, io_buf);
+	transmit(0, io_buf);
+	transmit(0, io_buf);
 	transmit(0, io_buf);
 
 

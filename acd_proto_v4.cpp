@@ -63,6 +63,11 @@ void send_buf(int sock, u8 *buf, u32 len)
 	}
 
 }
+#define ARG_READ				1
+#define ARG_WRITE				2
+#define PR_IMGMODE				1
+#define PR_IRQMODE				2
+#define PR_BEEPERMODE			3
 
 void do_protocol(int sock, u8* buffer, u8 port)
 {
@@ -84,11 +89,7 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			break;
 		// legacy command;
 		case CMD_SETUP:
-			#define ARG_READ				1
-			#define ARG_WRITE				2
-			#define PR_IMGMODE				1
-			#define PR_IRQMODE				2
-			#define PR_BEEPERMODE			3
+
 			if (err == ARG_READ)
 			    {
 			        switch (arg1)
@@ -133,22 +134,24 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			break;
 
 		case CMD_IMAGE_DUMP: {
-//				sem_wait(&gframe_mutex);
+
 			u16 w = 0, h = 0;
-			//long bg = get_cur_ms();
-			int pcklen = arg1;
+			long bg = get_cur_ms();
+			int pcklen = arg1, frame_size = 0;
 
 			if (pcklen < 512)
 				pcklen = 512;
 
-			if (arg2 == 1)
+			camera_stop();
+
+			if (arg2 == 1)	// legacy check finger
 				if (check_finger_presense(port) == 0) {
 					build_packet(cmd, arg1, arg2, ERR_NO_VALID_IMAGE, (u8 *) buffer);
 					send(sock, buffer, CTRL_PACK, 0);
 					break;
 				}
 
-			u8 *ptr = get_frame((cam_format_t) err, &w, &h, port);
+			u8 *ptr = get_frame(err, &w, &h, port);
 
 			if (ptr == NULL) {
 				build_packet(cmd, 0, 0, ERR_NO_VALID_IMAGE, (u8 *) buffer);
@@ -157,7 +160,7 @@ void do_protocol(int sock, u8* buffer, u8 port)
 				break;
 			}
 
-			int frame_size = w * h;
+			frame_size = w * h;
 			arg1 = frame_size;
 			arg2 = w;
 			err = ERR_1OK;
@@ -171,7 +174,7 @@ void do_protocol(int sock, u8* buffer, u8 port)
 
 			int 	tail = frame_size % pcklen,
 					ctrl = frame_size / pcklen;
-			printf("NumOfChunks=%d\n", ctrl);
+//			printf("NumOfChunks=%d\n", ctrl);
 
 			if (pcklen < frame_size) {
 
@@ -204,8 +207,10 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			build_packet(EVT_DATA, arg1, arg2, err, (u8 *) buffer);
 			send_buf(sock, buffer, CTRL_PACK);
 			send_buf(sock, ptr, pcklen);
-			printf("<\n");
-//				sem_post(&gframe_mutex);
+
+			camera_start();
+
+			printf("Time period %d\n", get_cur_ms() - bg);
 
 			break;
 		}
@@ -223,12 +228,17 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			fam_setup.highlight[port] = arg1;
 			//arg1 = 255 - arg1;
 			err = camera_iocmd(0x34, (u32 *) &arg1, port);
+			arg1 = 0;
+			err |= camera_iocmd(0x33, (u32 *) &arg1, port);
 			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
 		}
 		case CMD_SET_OFFSET: {
 			err = camera_iocmd(0x38, (u32 *) &arg1, port);
+			arg1 = 0x61;
+			err |= camera_iocmd(0x31, (u32 *) &arg1, port);
+			printf("SET OFFSET returns %d \n", arg1);
 			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
@@ -240,7 +250,10 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			arg2 = arg1;	// save initial value to return it to the host
 			arg1 = (((u16) arg1) << 16) | 0x35;
 			err = camera_iocmd(0x32, (u32 *) &arg1, port);
-			build_packet(cmd, arg2, 0, err, (u8 *) buffer);
+			arg1 = 0x35;
+			err |= camera_iocmd(0x31, (u32 *) &arg1, port);
+
+			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
 		}
@@ -278,7 +291,7 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			data[3] = fam_setup.offset[port] >> 8;
 			data[4] = fam_setup.highlight[port];
 			data[5] = fam_setup.irqMode;
-			data[6] = 0;
+			data[6] = fam_setup.beeperMode;
 			data[7] = 0;
 			err = ERR_1OK;
 			build_packet_data(cmd, data, err, (u8 *) buffer);
@@ -330,7 +343,9 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			case 7:
 				data[0] = fam_setup.irqMode;
 				data[1] = fam_setup.connTout;
-				data[2] = fam_setup.beeperMode;
+				data[2] = fam_setup.legacybyte[port];
+				data[3] = fam_setup.X0[port];
+				data[4] = fam_setup.Y0[port];
 				data[5] = fam_setup.imgMode;
 				break;
 			}
@@ -369,8 +384,10 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			if (err == 7) {
 				fam_setup.irqMode = data[0];
 				fam_setup.connTout = data[1];
-				fam_setup.beeperMode = data[2];
-				fam_setup.imgMode = data2[1];
+				fam_setup.legacybyte[port] = data[2];
+				fam_setup.X0[port]	= data[3];
+				fam_setup.Y0[port]	= data[4];
+				fam_setup.imgMode = data2[5];
 			}
 			save_setup(&fam_setup);
 			sleep(1);

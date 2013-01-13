@@ -166,7 +166,7 @@ struct FAM_SETUP {
 	u8 highlight[2];
 
 	u8 irqMode;
-	u8 imgMode; // 0 - 1280*1024, 1 - 1152*768
+	u8 imgMode;
 
 	u16 contrLimit[2];
 	u16 contrDelta[2];
@@ -174,11 +174,12 @@ struct FAM_SETUP {
 	u8 connTout;
 	u8 beeperMode;
 
-	u16 X0;	// смещение картинки 1152*768 относительно начала координат
-	u16 Y0;
-	u16 dX;
-	u16 dY;
+	u16 X0[2];	// смещение картинки 1152*768 относительно начала координат
+	u16 Y0[2];
+	u16 dX[2];
+	u16 dY[2];
 
+	u8 legacybyte[2];
 	u32 serial;
 
 } ;

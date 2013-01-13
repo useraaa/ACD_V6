@@ -79,19 +79,23 @@ int main(int argc, char *argv[])
 	}
 	// create camera IO and thread
 	camera_open();
+	// setup image processing
+	camera_setup();
+	// start IO extension
+	stmio_start();
 	// start external devices
 	extdev_init(no_extdev);
 	// start RTC
 	init_rtc();
 	// start networking
 	network_start();
-	// start IO extension
-	stmio_start();
-	// start image processing
+
+
+	// start capture...
 	camera_start();
 
-	//if ((argc > 1) && (!strcmp((const char *)argv[1],(const char *)'w')))
-	watchdogging = true;
+	if ((argc > 1) && (!strcmp((const char *)argv[1],(const char *)'w')))
+		watchdogging = true;
 
 	if (watchdogging){
 		int fd = open("/dev/watchdog", O_WRONLY);

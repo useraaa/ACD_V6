@@ -20,10 +20,12 @@
 #define ACD_START_STOP_STREAM	_IOW(ACD_MAGIC, 4, u32)
 #define ACD_GET_BUFFER_SYNC			_IOWR(ACD_MAGIC, 5, u32)
 #define ACD_RELEASE_BUFFER_SYNC 	_IOWR(ACD_MAGIC, 6, u32)
-#define ACD_SET_NEW_FORMAT			_IOWR(ACD_MAGIC, 7, u32)
+#define ACD_SET_FORMAT				_IOWR(ACD_MAGIC, 7, u32)
 #define ACD_SET_CONTRAST_LIMIT0		_IOWR(ACD_MAGIC, 8, u32)
 #define ACD_SET_CONTRAST_LIMIT1		_IOWR(ACD_MAGIC, 9, u32)
 #define ACD_GET_FDETECTED			_IOWR(ACD_MAGIC, 10, u32)
+#define ACD_SET_IRQMODE				_IOWR(ACD_MAGIC, 11, u32)
+#define ACD_SET_IMGMODE				_IOWR(ACD_MAGIC, 12, u32)
 
 #define FRAME_W 1280
 #define FRAME_H 1024
@@ -52,13 +54,15 @@ void camera_close ();
 void camera_stop();
 void camera_start();
 
+void camera_setup();
+
 u8 check_finger_presense(u8 port);
 int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num);
 
 void lock_cam();
 void unlock_cam();
 
-u8 *get_frame (cam_format_t fmt, u16 * w, u16 * h, u8 port);
+u8 *get_frame (u8 fmt, u16 * w, u16 * h, u8 port);
 void cam_beep(u8 l, u8 p);
 
 

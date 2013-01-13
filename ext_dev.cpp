@@ -88,7 +88,6 @@ int extdev_init (enum extdevs dev)
 	}
 
 	transmit(13, stmiobuf);
-	usleep(100000);
 
 	memset (stmiobuf, 0, sizeof(stmiobuf));
 	transmit(12, stmiobuf);
