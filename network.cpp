@@ -118,21 +118,23 @@ void HandleClient(int sock, u8 port)
 	close(sock);
 }
 
-void io_event(u8 event, u32 arg1, u32 arg2, u8 err, u8 port) {
+ACD_ERR io_event(u8 event, u32 arg1, u32 arg2, u8 err, u8 port) {
 	if (clientsocks[port] == NULL) {
 		printf("PORT unconnected!\n");
-		return;
+		return ERR_PORT;
 	}
 
 	printf("PORT:%d event %d [%X][%X][%x]\n", fam_setup.port[port], event, arg1, arg2, err);
 	if (!fam_setup.irqMode)
-		return;
+		return ERR_MODE;
 
 	u8 buffer[CTRL_PACK];
 
 	build_packet(event, arg1, arg2, err, (u8 *) buffer);
 
 	send_buf(clientsocks[port], buffer, CTRL_PACK);
+
+	return ERR_OK;
 }
 
 static void * net_stream(void *port) {

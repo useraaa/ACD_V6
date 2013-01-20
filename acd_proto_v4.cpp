@@ -73,6 +73,7 @@ void do_protocol(int sock, u8* buffer, u8 port)
 {
 	u8 cmd, err;
 	u32 arg1, arg2;
+	u32 cambuf[2];
 
 	process_packet((u8 *) buffer, &cmd, &arg1, &arg2, &err);
 
@@ -207,7 +208,7 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			build_packet(EVT_DATA, arg1, arg2, err, (u8 *) buffer);
 			send_buf(sock, buffer, CTRL_PACK);
 			send_buf(sock, ptr, pcklen);
-
+			camera_release_buffer(port);
 			camera_start();
 
 			printf("Time period %d\n", get_cur_ms() - bg);
@@ -224,34 +225,34 @@ void do_protocol(int sock, u8* buffer, u8 port)
 			break;
 		}
 		case CMD_SET_HIGHLIGHT: {
-			err = ERR_1OK;
-			fam_setup.highlight[port] = arg1;
-			//arg1 = 255 - arg1;
-			err = camera_iocmd(0x34, (u32 *) &arg1, port);
-			arg1 = 0;
-			err |= camera_iocmd(0x33, (u32 *) &arg1, port);
+
+			if ((err = cam_set_bl ((u8 *)&arg1, port)))
+				err = ERR_I2C_ERROR;
+			else
+				err = ERR_1OK;
+
 			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
 		}
+
 		case CMD_SET_OFFSET: {
-			err = camera_iocmd(0x38, (u32 *) &arg1, port);
-			arg1 = 0x61;
-			err |= camera_iocmd(0x31, (u32 *) &arg1, port);
-			printf("SET OFFSET returns %d \n", arg1);
+			if ((err = cam_set_offset ((u16 *)&arg1, port)))
+				err = ERR_I2C_ERROR;
+			else
+				err = ERR_1OK;
+
 			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);
 			break;
 		}
 
 		case CMD_SET_GAIN: {
-			err = ERR_1OK;
-			fam_setup.gain[port] = arg1;
-			arg2 = arg1;	// save initial value to return it to the host
-			arg1 = (((u16) arg1) << 16) | 0x35;
-			err = camera_iocmd(0x32, (u32 *) &arg1, port);
-			arg1 = 0x35;
-			err |= camera_iocmd(0x31, (u32 *) &arg1, port);
+
+			if ((err = cam_set_gain ((u8 *)&arg1, port)))
+				err = ERR_I2C_ERROR;
+			else
+				err = ERR_1OK;
 
 			build_packet(cmd, arg1, 0, err, (u8 *) buffer);
 			send(sock, buffer, CTRL_PACK, 0);

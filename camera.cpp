@@ -26,34 +26,9 @@
 #include "camera.h"
 
 
+void camera_reset(u8 num);
+static void * cam_stream(void *ptr);
 
-
-int cam_d; // file descriptor
-int camio = 0;
-FILE *cam_switch;
-u8 *cam_vbuf[2];
-sem_t camio_mutex;
-//u8 stored_buf[2][FRAME_S];
-//u8 output_buf[2][FRAME_S];
-
-int active = 0;
-
-u8 hline[FRAME_W];
-u8 vline[FRAME_H];
-
-u8 camio_buf[9];
-
-u8 camera_holder[2] = { 0, 0 };
-volatile u8 camera_holder_ack[2] = { 0, 0 };
-static u32 have_finger_on_camera;
-
-u32 current_frame_counter = 0, last_frame_counter = 0;
-u8 camera_cmd[2] = { 0, 0 };
-u32 camera_arg[2] = { 0, 0 };
-
-u8 camera_rst = 0;
-pthread_mutex_t cam0_mutex;
-pthread_cond_t cam0_cond_in, cam0_cond_out;
 
 struct cam_control {
 	u8 detected;
@@ -80,54 +55,150 @@ struct acd6c_format {
 	u16 h;
 	u8 bpp; /* bits per pixel */
 };
-//
-//static const struct acd6c_format fmts[] = {
-//		{8,20,12,1280,1024},
-//		{8,320,256,640,512}
-//};
 
-//struct format image_fmt[5] = {
-//		{0,0,384,600, 0.3, 0.586},	// 0
-//		{0,0,640,512, 0.5, 0.5},	// 1
-//		{0,0,576,768, 0.45, 0.75},	// 2
-//		{0,0,576,384, 0.45, 0.375},	// 3
-//		{0,0,1280,1024, 1, 1}		// 4
-//};
+struct fp_det {
+	u32 camera;
+	u32 detect_score;
+	u32 detect_delta;
+	u32 timeout;
+};
 
-void camera_reset(u8 num);
-static void * cam_stream(void *ptr);
+
+
+
+int cam_d; // file descriptor
+int camio = 0;
+FILE *cam_switch;
+u8 *cam_vbuf[2];
+sem_t camio_mutex;
+//u8 stored_buf[2][FRAME_S];
+//u8 output_buf[2][FRAME_S];
+
+int active = 0;
+
+u8 hline[FRAME_W];
+u8 vline[FRAME_H];
+
+u8 camio_buf[9];
+
+//u8 camera_holder[2] = { 0, 0 };
+static u32 have_finger_on_camera[2] = { 0, 0 };
+
+u32 current_frame_counter = 0, last_frame_counter = 0;
+u8 camera_cmd[2] = { 0, 0 };
+u32 camera_arg[2] = { 0, 0 };
+
+u8 camera_rst = 0;
+pthread_mutex_t cam0_mutex;
+//pthread_cond_t cam0_cond_in, cam0_cond_out;
+
 pthread_t cam_thread_d;
-
-
 volatile u8 tcp_transfer = 0; // camera_process_delay
 volatile u8 tcp_transfer_lock = 0;
 
-void cam_beep(u8 l, u8 p)
+
+
+void camera_alarm(int par)
 {
-	u32 ll = l;
-	camera_iocmd(0x35, &ll, p);
+	printf("alarma! %d\n", par);
 }
 
+/*!
+ *
+ * @param l
+ * @param p
+ * @return
+ */
+ACD_ERR cam_beep(u8 l, u8 p)
+{
+	u32 ll = l;
+	if (!camera_iocmd(0x35, &ll, p))
+		return ERR_I2C_ERROR;
+	return ERR_OK;
+}
+/*!
+ *
+ * @param format
+ */
 void camera_set_imgmode(u8 format)
 {
  	if (ioctl(cam_d, ACD_SET_IMGMODE, format) != 0)
 		perror("Set Format ioctl error \n");
 
 }
-void cam_set_gain (u8 value, u8 cam_num)
-{
-	u32 arg = ((value) << 16) | 0x35;
-	printf("%d: Set gain %d\n", cam_num ,value);
-	camera_iocmd(0x32, (u32 *) &arg, cam_num);
 
+
+/*!
+ * Установка усиления камеры
+ * @param value
+ * @param cam_num
+ * @return
+ */
+ACD_ERR cam_set_gain (u8 *value, u8 cam_num)
+{
+	u32 cambuf[2] = {((*value) << 16) | 0x35, 0};
+	fam_setup.gain[cam_num] = *value;	// save to setup
+
+	if (camera_iocmd(0x32, cambuf, cam_num))
+		return ERR_I2C_ERROR;
+
+	cambuf[0] = 0x35;
+	if (camera_iocmd(0x31, cambuf, cam_num))
+		return ERR_I2C_ERROR;
+
+	dbg("CMD_SET_GAIN returns %x:%x \n", cambuf[0], cambuf[1]);
+	*value = (u8) cambuf[0];
+	return ERR_OK;
 }
 
-void cam_set_bl ( u8 value, u8 cam_num)
+/*!
+ *
+ * @param value
+ * @param cam_num
+ * @return
+ */
+ACD_ERR cam_set_bl ( u8 *value, u8 cam_num)
 {
-	u32 arg = value;
-	printf("%d: Set bl %d\n", cam_num ,value);
-	camera_iocmd(0x34, &arg, cam_num);
+	u32 cambuf[2] = {*value, 0};
+	fam_setup.highlight[cam_num] = *value;	// save to setup
+
+	if (camera_iocmd(0x34, cambuf, cam_num))
+		return ERR_I2C_ERROR;
+
+
+	if (camera_iocmd(0x33, cambuf, cam_num))
+		return ERR_I2C_ERROR;
+
+	dbg("CMD_SET_BACKLIGHT returns %x:%x \n", cambuf[0], cambuf[1]);
+	*value = (u8) cambuf[0];
+	return ERR_OK;
 }
+/*!
+ *
+ * @param value
+ * @param cam_num
+ * @return
+ */
+ACD_ERR cam_set_offset ( u16 *value, u8 cam_num)
+{
+	u32 cambuf[2] = {(u16)*value, 0};
+	fam_setup.offset[cam_num] = *value;	// save to setup
+
+	if (camera_iocmd(0x38, cambuf, cam_num))
+		return ERR_I2C_ERROR;
+
+	cambuf[0] = 0x61;
+
+	if (camera_iocmd(0x31, cambuf, cam_num))
+		return ERR_I2C_ERROR;
+
+	dbg("CMD_SET_OFFSET returns %x:%x \n", cambuf[0], cambuf[1]);
+	*value = (u16) cambuf[0];
+	return ERR_OK;
+}
+
+
+
 
 int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num)
 {
@@ -138,10 +209,12 @@ int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num)
 	u32 tmo = 500, len;
 	u8 bbuf[CAMERA_CMD_PACK_SZ*4];
 
+	usleep(1000);
+
 	bbuf[0] = 'S';
 	bbuf[1] = cmd;
 	bbuf[10] = 'F';
-	memcpy(&bbuf[2], arg, 4);
+	memcpy((u8 *)&bbuf[2], arg, 8);
 
 	// write to camera MC
 	write(camio, bbuf, CAMERA_CMD_PACK_SZ);
@@ -154,32 +227,26 @@ int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num)
 		if (q > 0)
 			len += q;
 		else {
-			usleep(10);
-			if (--tmo == 0)
-				break;
+			usleep(100);
+			if (--tmo == 0) break;
 		}
 	}
-
 	if (!tmo) {
 		printf("Camera IO ERROR\n");
 		return ERR_I2C_ERROR;
 	} else
-		memcpy(arg, &bbuf[2], 4);
+		memcpy(arg, &bbuf[2], 8);
 
-	//printf("camio %04x %d tmo:%d\n", *arg, cam_num, tmo);
 
-//	sem_post(&camio_mutex);
-
+	usleep(1000);
 	return ERR_OK;
 }
 
-void camera_alarm(int sig_num) {
-	// Capture timeouts
-	have_finger_on_camera = 0;
-
-//	printf("%d %d\n", have_finger_on_camera[0], have_finger_on_camera[1]);
-	alarm(1);
-}
+//void camera_alarm(int sig_num) {
+//
+//
+//	alarm(1);
+//}
 
 int camera_open( void ) {
 
@@ -251,24 +318,32 @@ void camera_setup()
 	if (ioctl(cam_d, ACD_SET_CONTRAST_LIMIT1, fam_setup.contrLimit[1]) != 0)
 		perror("ioctl");
 
-	cam_set_bl(fam_setup.highlight[0], 0);
-	cam_set_gain(fam_setup.gain[0], 0);
+	cam_set_bl(&fam_setup.highlight[0], 0);
+	cam_set_gain(&fam_setup.gain[0], 0);
+	cam_set_offset(&fam_setup.offset[0], 0);
 
-	cam_set_bl(fam_setup.highlight[1], 1);
-	cam_set_gain(fam_setup.gain[1], 1);
+	cam_set_bl(&fam_setup.highlight[1], 1);
+	cam_set_gain(&fam_setup.gain[1], 1);
+	cam_set_offset(&fam_setup.offset[1], 1);
 
 	camera_set_imgmode(fam_setup.imgMode);
 
 	ioctl (cam_d, ACD_SET_IRQMODE, fam_setup.irqMode);
 
+
+}
+
+void camera_start() {
+
+	active = 1;
 	int ret = pthread_create(&cam_thread_d, NULL, cam_stream, 0);
 
 	if (ret) {
 		printf("camera thread create fail\n");
 	}
-}
 
-void camera_start() {
+	if (ioctl(cam_d, ACD_RELEASE_BUFFER_SYNC, 1) != 0)
+			perror("ioctl");
 
 	if (ioctl(cam_d, ACD_START_STOP_STREAM, 1) != 0)
 		perror("ioctl");
@@ -277,49 +352,82 @@ void camera_start() {
 }
 
 void camera_stop() {
+	active = 0;
 	if (ioctl(cam_d, ACD_START_STOP_STREAM, 0) != 0)
 		perror("ioctl");
 	return;
 }
 
-void camera_release_buffer (u8 num) {
+void camera_release_buffer (u8 num)
+{
 	if (ioctl(cam_d, ACD_RELEASE_BUFFER_SYNC, num) != 0)
-			perror("ioctl ACD_");
+			printf("ioctl error at %s\n", __func__);
+	have_finger_on_camera[num] = 0;
 	return;
 }
 
 volatile u32 cam_fn[2] = {0,0};
 static void * cam_stream(void *ptr) {
-	u16 detect_score = 0;
 
-	u32 f_detected = 0;
 
-	printf("%s started\n", __func__);
+
+	printf("%s started WITH %d\n", __func__, active);
 	u16 w, h;
+	struct fp_det fpd1,fpd2;
 
 	while (active) {
 
 		usleep(10000);
-		f_detected = 0;
-		//cam_c.cam_number = 0;
 
-		ioctl(cam_d, ACD_GET_FDETECTED, &f_detected);
-		if (f_detected)
+
+		fpd1.camera = 0;
+		ioctl(cam_d, ACD_GET_FDETECTED, (u32)&fpd1);
+
+		fpd2.camera = 1;
+		ioctl(cam_d, ACD_GET_FDETECTED, (u32)&fpd2);
+
+		if (fpd1.timeout && (have_finger_on_camera[0] == 1))
+			have_finger_on_camera[0] = 0;
+
+		if (fpd2.timeout && (have_finger_on_camera[1] == 1))
+			have_finger_on_camera[1] = 0;
+
+		if (fpd1.timeout && (have_finger_on_camera[0] == 0))
 		{
-			f_detected = 0;
-			if (fam_setup.irqMode) {
+			if (fam_setup.irqMode == 1)
+				if (have_finger_on_camera[0] == 1)
+					if (io_event(EVT_VALID_IMAGE, fpd1.detect_delta, fpd1.detect_score, 0, 0) != ERR_OK)
+						have_finger_on_camera[0] = 0;
+					else {
+						have_finger_on_camera[0] = 1;
+						printf("0: %d, %d\n", fpd1.detect_score, fpd1.detect_delta);
+					}
 
-				io_event(EVT_VALID_IMAGE, (u32) detect_score, cam_fn[0]++, 0, 0);
-				if (fam_setup.beeperMode)
-					beep(2, 0);
+			if (fam_setup.beeperMode) {
+				beep(2, 0);
 			}
-			printf("Got frame %d\n", f_detected);
-//			camera_release_buffer(0);
+		}
+
+		if (fpd2.timeout&&(!have_finger_on_camera[1])==0) {
+
+
+			if (fam_setup.irqMode == 1)
+				if (have_finger_on_camera[1] == 0)
+					if (io_event(EVT_VALID_IMAGE, fpd2.detect_delta, fpd2.detect_score, 0, 1) != ERR_OK)
+						have_finger_on_camera[1] = 0;
+					else {
+						printf("1: %d, %d\n", fpd2.detect_score, fpd2.detect_delta);
+						have_finger_on_camera[1] = 1;
+					}
+
+			if (fam_setup.beeperMode) {
+				beep(2, 0);
+			}
 		}
 
 
 	}
-
+	printf("%s stopped\n", __func__);
 	return NULL;
 }
 
@@ -459,11 +567,7 @@ void unlock_cam()
 
 u8 check_finger_presense(u8 port)
 {
-	if ( ((port == 1) && (have_finger_on_camera == 2)) ||
-		((port == 0) && (have_finger_on_camera == 1)) )
-		return 1;
-	else
-		return 0;
+	return have_finger_on_camera[port];
 }
 
 u8 *get_frame(u8 fmt, u16 * w, u16 * h, u8 port)

@@ -58,12 +58,16 @@ void camera_setup();
 
 u8 check_finger_presense(u8 port);
 int camera_iocmd(u8 cmd, u32 *arg, u8 cam_num);
-
+void camera_release_buffer (u8 num);
 void lock_cam();
 void unlock_cam();
 
+ACD_ERR cam_set_offset ( u16 *value, u8 cam_num);
+ACD_ERR cam_set_gain (u8 *value, u8 cam_num);
+ACD_ERR cam_set_bl ( u8 *value, u8 cam_num);
+
 u8 *get_frame (u8 fmt, u16 * w, u16 * h, u8 port);
-void cam_beep(u8 l, u8 p);
+ACD_ERR cam_beep(u8 l, u8 p);
 
 
 #endif /* CAMERA_H_ */

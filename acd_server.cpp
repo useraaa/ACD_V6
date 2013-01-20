@@ -89,8 +89,6 @@ int main(int argc, char *argv[])
 	init_rtc();
 	// start networking
 	network_start();
-
-
 	// start capture...
 	camera_start();
 

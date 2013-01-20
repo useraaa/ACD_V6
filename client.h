@@ -1,6 +1,8 @@
 #ifndef ACD_CLIENT_H_
 #define ACD_CLIENT_H_
 
+#define DEBUG
+
 
 #define SERV_PORT 5000
 
@@ -10,22 +12,25 @@
 #define EVT_DATA				147//0x93
 #define	FAM_START_BYTE			0x40
 #define	FAM_STOP_BYTE			0x0D
-#define	FAM_ERR_BASE (char)0x00						
+#define	FAM_ERR_BASE (int)0x00
 
 #define	ERR_1OK							(FAM_ERR_BASE + 0x40)
 #define ERR_DATA						(FAM_ERR_BASE + 0x51)
 #define ERR_LDATA						(FAM_ERR_BASE + 0x52)
 
-#define ERR_OK					(FAM_ERR_BASE -0)
+
+typedef int ACD_ERR;
+#define ERR_OK					0
 #define	 ERR_ERROR				(FAM_ERR_BASE -1)
 #define	 ERR_BAD_ARGUMENT		(FAM_ERR_BASE -2)
 #define	 ERR_CRC_ERROR			(FAM_ERR_BASE -3)
-#define	 ERR_UNKNOWN_COMMAND		(FAM_ERR_BASE -4)
+#define	 ERR_UNKNOWN_COMMAND	(FAM_ERR_BASE -4)
 #define	 ERR_INVALID_STOP_BYTE	(FAM_ERR_BASE -5)
 #define	 ERR_I2C_ERROR			(FAM_ERR_BASE -6)
 #define ERR_NO_VALID_IMAGE		(FAM_ERR_BASE -7)
 #define ERR_TOUT				(FAM_ERR_BASE -8)
 #define ERR_QUE_OVERFLOW		(FAM_ERR_BASE -9)
+
 
 
 #define CMD_GET_VERSION			1
@@ -98,6 +103,10 @@
 #define ERR_EVT_OW1			0x03
 #define ERR_EVT_OW2			0x04
 
+
+#define ERR_PORT			0x05
+#define ERR_MODE			0x06
+
 enum {
 	LED_OFF,
 	LED_GREEN,
@@ -144,7 +153,7 @@ typedef int s32;
 
 
 
-void io_event (u8 event, u32 arg1, u32 arg2, u8 err, u8 port);
+ACD_ERR io_event (u8 event, u32 arg1, u32 arg2, u8 err, u8 port);
 void make_cmd( u8 * buf, u8 cmd );
 void transmit( u8 cmd, u8 *packet);
 void beep(u8 l, u8 p);
@@ -199,6 +208,11 @@ struct ip_setup
 	u8 mac[6];
 };
 
+#ifdef DEBUG
+#define dbg printf
+#else
+#define dbg //
+#endif
 
 
 #endif
