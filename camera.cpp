@@ -379,46 +379,54 @@ static void * cam_stream(void *ptr) {
 
 		usleep(10000);
 
-
 		fpd1.camera = 0;
 		ioctl(cam_d, ACD_GET_FDETECTED, (u32)&fpd1);
 
 		fpd2.camera = 1;
 		ioctl(cam_d, ACD_GET_FDETECTED, (u32)&fpd2);
 
-		if (fpd1.timeout && (have_finger_on_camera[0] == 1))
+		if (fpd1.timeout == 0)
 			have_finger_on_camera[0] = 0;
 
-		if (fpd2.timeout && (have_finger_on_camera[1] == 1))
+		if (fpd2.timeout == 0)
 			have_finger_on_camera[1] = 0;
 
 		if (fpd1.timeout && (have_finger_on_camera[0] == 0))
 		{
 			if (fam_setup.irqMode == 1)
-				if (have_finger_on_camera[0] == 1)
-					if (io_event(EVT_VALID_IMAGE, fpd1.detect_delta, fpd1.detect_score, 0, 0) != ERR_OK)
-						have_finger_on_camera[0] = 0;
-					else {
-						have_finger_on_camera[0] = 1;
-						printf("0: %d, %d\n", fpd1.detect_score, fpd1.detect_delta);
-					}
+			{
+				if (io_event(EVT_VALID_IMAGE, fpd1.detect_delta, fpd1.detect_score, 0, 0) == ERR_OK) {
+					have_finger_on_camera[0] = 1;
+					printf("FPD 1: Score %d : Delta: %d\n",
+										fpd1.detect_score,
+										fpd1.detect_delta);
+				} else {
+					camera_release_buffer(0);
+					have_finger_on_camera[0] = 0;
+				}
+			} else
+				have_finger_on_camera[0] = 1;
 
 			if (fam_setup.beeperMode) {
 				beep(2, 0);
 			}
 		}
 
-		if (fpd2.timeout&&(!have_finger_on_camera[1])==0) {
-
+		if (fpd2.timeout&&(have_finger_on_camera[1]==0)) {
 
 			if (fam_setup.irqMode == 1)
-				if (have_finger_on_camera[1] == 0)
-					if (io_event(EVT_VALID_IMAGE, fpd2.detect_delta, fpd2.detect_score, 0, 1) != ERR_OK)
-						have_finger_on_camera[1] = 0;
-					else {
-						printf("1: %d, %d\n", fpd2.detect_score, fpd2.detect_delta);
-						have_finger_on_camera[1] = 1;
-					}
+			{
+				if (io_event(EVT_VALID_IMAGE, fpd2.detect_delta, fpd2.detect_score, 0, 1) == ERR_OK) {
+					have_finger_on_camera[1] = 1;
+					printf("FPD 2: Score %d: Delta: %d\n",
+									fpd2.detect_score,
+									fpd2.detect_delta);
+				} else {
+					camera_release_buffer(1);
+					have_finger_on_camera[1] = 0;
+				}
+			} else
+				have_finger_on_camera[1] = 0;
 
 			if (fam_setup.beeperMode) {
 				beep(2, 0);

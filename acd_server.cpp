@@ -68,9 +68,8 @@ int kbhit(void) {
 
 int main(int argc, char *argv[])
 {
-	bool watchdogging = false;
 
-	// hello world!!!
+ 	// hello world!!!
 	printf("[%s](%s)\n", BANNER, __DATE__);
 
 	// load settings
@@ -91,11 +90,11 @@ int main(int argc, char *argv[])
 	network_start();
 	// start capture...
 	camera_start();
+//
 
-	if ((argc > 1) && (!strcmp((const char *)argv[1],(const char *)'w')))
-		watchdogging = true;
+	if ((argc > 1) && (strcmp(argv[1],"-w")==0)) {
+		printf("ARGC %d : [%s]\n", argc,argv[1]);
 
-	if (watchdogging){
 		int fd = open("/dev/watchdog", O_WRONLY);
 		if (fd == -1) {
 			perror("watchdog");

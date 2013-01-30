@@ -46,7 +46,7 @@
 static void * net_stream(void *ptr);
 static void * log_stream(void *arg);
 
-int clientsock, clientsocks[5], log_socket;
+int clientsock, clientsocks[5] = {NULL,NULL,NULL,NULL,NULL}, log_socket;
 struct LOG_MESSAGES log_message;
 pthread_t net_thread_d1, net_thread_d2, log_thread_d;
 
@@ -64,7 +64,6 @@ void network_start()
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, 1024 * 1024 * 2);
 
-
 	char cmd[64];
 	sprintf(cmd, "ifconfig eth0 up %d.%d.%d.%d", fam_setup.ip[3],
 			fam_setup.ip[2], fam_setup.ip[1], fam_setup.ip[0]);
@@ -76,7 +75,6 @@ void network_start()
 		printf("stmio thread1 create fail\n");
 	}
 	printf("launch port2\n");
-
 	if (pthread_create(&net_thread_d2, &attr, net_stream, &fam_setup.port[1])) {
 		printf("stmio thread2 create fail\n");
 	}
@@ -150,8 +148,7 @@ static void * net_stream(void *port) {
 	echoserver.sin_family = AF_INET; /* Internet/IP */
 	echoserver.sin_addr.s_addr = htonl(INADDR_ANY); /* Incoming addr */
 	echoserver.sin_port = htons(*(u16 *) port); /* server port */
-	clientsocks[0] = NULL;
-	clientsocks[1] = NULL;
+
 	/* Bind the server socket */
 	int i = 60;
 	for (; i > 0; i--){
